@@ -1,0 +1,36 @@
+name: Publish to PyPI/TestPyPI
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install build tools
+        run: python -m pip install --upgrade build twine
+      - name: Build package
+        run: python -m build
+      - name: Determine repository and credentials
+        id: repo
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          if [[ "$TAG_NAME" =~ (rc|dev|test) ]]; then
+            echo "repository=testpypi" >> $GITHUB_OUTPUT
+            echo "token_name=TESTPYPI_TOKEN" >> $GITHUB_OUTPUT
+          else
+            echo "repository=pypi" >> $GITHUB_OUTPUT
+            echo "token_name=PYPI_TOKEN" >> $GITHUB_OUTPUT
+          fi
+      - name: Publish to PyPI/TestPyPI
+        env:
+          TWINE_USERNAME: acmcmc
+          TWINE_PASSWORD: ${{ secrets[steps.repo.outputs.token_name] }}
+        run: |
+          python -m twine upload --repository ${{ steps.repo.outputs.repository }} dist/*

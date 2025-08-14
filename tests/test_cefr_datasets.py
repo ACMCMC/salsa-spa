@@ -32,30 +32,58 @@ def test_concat_cefr_datasets():
     # Concatenate datasets
     ds = concatenate_datasets([ds1, ds2])
     assert len(ds) > 0, "No data after filtering!"
-    # Test one sample per category
-    # Collect results for JSON report
+    # Take 100 samples per CEFR level, compute averages, and report
     import json
     import logging
     report = []
+    summary = {}
 
     for lvl in CEFR_LEVELS:
-        sample = next((row for row in ds if row["category"] == lvl), None)
-        assert sample is not None, f"No sample for category {lvl}"
-        text = sample["text"]
-        result, _ = grade_with_probabilities(text=text)
-        logging.info(
-            f"Level: {lvl}, Grade: {result['grade']:.2f}, Probabilities: {result['probabilities']}"
-        )
-        assert 0.0 <= result["grade"] <= 1.0
-        assert abs(sum(result["probabilities"].values()) - 1.0) < 1e-6
-        # Store result for report
-        report.append({
-            "level": lvl,
-            "grade": result["grade"],
-            "probabilities": result["probabilities"]
-        })
+        # Get up to 100 samples for this level
+        samples = [row for row in ds if row["category"] == lvl][:100]
+        grades = []
+        probs_list = []
+        for sample in samples:
+            text = sample["text"]
+            result, _ = grade_with_probabilities(text=text)
+            grades.append(result["grade"])
+            probs_list.append(result["probabilities"])
+            report.append({
+                "level": lvl,
+                "grade": result["grade"],
+                "probabilities": result["probabilities"]
+            })
+        if grades:
+            # Average grade
+            avg_grade = sum(grades) / len(grades)
+            # Average probabilities per class
+            avg_probs = {}
+            for key in probs_list[0].keys():
+                avg_probs[key] = sum(p[key] for p in probs_list) / len(probs_list)
+            summary[lvl] = {
+                "avg_grade": avg_grade,
+                "avg_probabilities": avg_probs,
+                "n_samples": len(grades)
+            }
+            logging.info(
+                f"Level: {lvl}, Avg Grade: {avg_grade:.2f}, Avg Probabilities: {avg_probs}"
+            )
+        else:
+            summary[lvl] = {
+                "error": f"No samples for category {lvl}"
+            }
 
-    # Save report to JSON file
+    # Save report and summary to JSON file before assertions
     with open("outputs/cefr_test_report.json", "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
+        json.dump({"samples": report, "summary": summary}, f, ensure_ascii=False, indent=2)
     logging.info("Saved CEFR test report to outputs/cefr_test_report.json")
+
+    # Now do assertions
+    for lvl in CEFR_LEVELS:
+        entry = summary[lvl]
+        if "error" in entry:
+            assert False, entry["error"]
+        avg_grade = entry["avg_grade"]
+        avg_probs = entry["avg_probabilities"]
+        assert 0.0 <= avg_grade <= 1.0
+        assert abs(sum(avg_probs.values()) - 1.0) < 1e-6

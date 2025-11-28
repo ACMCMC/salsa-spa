@@ -3,14 +3,14 @@ name = "salsa-spa"
 version = "0.1.0"
 description = "SALSA: Spanish Automatic Language Skill Analyzer. A Python library for Spanish text analysis and automatic CEFR grading."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "typer[all]>=0.16.0",
+    "spacy>=3.7.0",
 ]
 authors = [
     { name = "Jesus Vazquez-Capel", email = "jesus.vazquezcapel@estudiante.uam.es" },
-    { name = "Aldan Creo", email = "os@acmc.fyi" },
-    { name = "Damaris Mayans", email = "dmayans@colby.edu" }
+    { name = "Aldan Creo", email = "os@acmc.fyi" }
 ]
 
 [project.scripts]

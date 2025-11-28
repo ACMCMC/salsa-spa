@@ -4,11 +4,12 @@ File I/O utilities for reading and writing text and CSV files.
 
 import csv
 import logging
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
-def read_text_file(filepath: str) -> str | None:
+def read_text_file(filepath: str) -> Optional[str]:
     # Read and return the content of a text file
     try:
         with open(filepath, "r", encoding="utf-8") as file:

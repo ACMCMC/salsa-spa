@@ -44,10 +44,11 @@ def grade_with_probabilities(text: str) -> tuple[dict, dict]:
         for lvl in all_levels
     }
     
-    # Use more aggressive weighting for higher levels (tail of distribution)
-    # Polynomial weighting gives more weight to advanced levels without being excessive
-    # Using level^2 gives moderate tail weighting: C2 gets 36x weight vs A1's 1x
-    poly_weights = {lvl: (level_values[lvl] ** 2) for lvl in known_levels}
+    # Use moderate weighting for higher levels (tail of distribution)
+    # Balanced approach: use level^1.02 for a very gentle boost to advanced words
+    # This gives C2 ~1.2x weight vs A1, which is a reasonable middle ground
+    # Advanced words matter slightly more but don't dominate the calculation
+    poly_weights = {lvl: (level_values[lvl] ** 1.02) for lvl in known_levels}
     
     # Calculate grade based only on known words, with heavy tail weighting
     present_levels = [
@@ -55,10 +56,11 @@ def grade_with_probabilities(text: str) -> tuple[dict, dict]:
     ]
     
     if present_levels:
-        # Calculate weighted average of level values, favoring higher levels
-        # Weight both the probability and the level value
+        # Calculate weighted average of level values, with moderate boost for higher levels
+        # Weight the probabilities (not the level values) to give advanced words more influence
+        # This is a more balanced approach
         numerator = sum(
-            probabilities_known[lvl] * level_values[lvl] * poly_weights[lvl]
+            (probabilities_known[lvl] * poly_weights[lvl]) * level_values[lvl]
             for lvl in present_levels
         )
         denominator = sum(
@@ -96,9 +98,66 @@ def grade_with_probabilities(text: str) -> tuple[dict, dict]:
     for level in found_expressions:
         found_expressions[level].sort()
     
+    # Convert grade (0-1) to CEFR level prediction
+    # Map grade to CEFR levels: 0=A0, 0-1/6=A1, 1/6-2/6=A2, 2/6-3/6=B1, 3/6-4/6=B2, 4/6-5/6=C1, 5/6-1.0=C2
+    if grade == 0.0:
+        predicted_level = "A0"
+    elif grade <= 1/6:
+        predicted_level = "A1"
+    elif grade <= 2/6:
+        predicted_level = "A2"
+    elif grade <= 3/6:
+        predicted_level = "B1"
+    elif grade <= 4/6:
+        predicted_level = "B2"
+    elif grade <= 5/6:
+        predicted_level = "C1"
+    else:
+        predicted_level = "C2"
+    
+    # Calculate confidence score (0-1)
+    # Confidence is based on:
+    # 1. Proportion of known words (more known words = higher confidence)
+    # 2. Concentration of distribution (more concentrated = higher confidence)
+    # 3. Sample size (more words = higher confidence, up to a point)
+    
+    if known_words_count == 0:
+        confidence = 0.0
+    else:
+        # Base confidence on proportion of known words
+        known_ratio = known_words_count / total_words if total_words > 0 else 0.0
+        
+        # Calculate concentration: how much probability is in the top level(s)
+        # Use entropy-like measure: lower entropy = higher concentration = higher confidence
+        if present_levels:
+            # Calculate weighted entropy (lower = more concentrated)
+            entropy = -sum(
+                p * math.log(p + 1e-10)  # Add small epsilon to avoid log(0)
+                for p in probabilities_known.values()
+                if p > 0
+            )
+            max_entropy = math.log(len(present_levels)) if len(present_levels) > 1 else 1.0
+            concentration = 1.0 - (entropy / max_entropy) if max_entropy > 0 else 1.0
+        else:
+            concentration = 0.0
+        
+        # Sample size factor: more words = higher confidence, but with diminishing returns
+        # Use log scale: log(known_words + 1) / log(50 + 1) caps at ~50 words
+        sample_factor = min(math.log(known_words_count + 1) / math.log(51), 1.0)
+        
+        # Combine factors: known_ratio (40%), concentration (40%), sample_factor (20%)
+        confidence = (
+            0.4 * known_ratio +
+            0.4 * concentration +
+            0.2 * sample_factor
+        )
+        confidence = min(max(confidence, 0.0), 1.0)  # Clamp to [0, 1]
+    
     # Main output dict
     result = {
         "grade": grade,
+        "predicted_level": predicted_level,
+        "confidence": confidence,
         "probabilities": probabilities,
         "stats": {
             "total_words": total_words,

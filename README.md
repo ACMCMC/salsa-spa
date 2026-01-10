@@ -9,8 +9,6 @@ Authors:
   ORCID: [0009-0003-2668-9491](https://orcid.org/0009-0003-2668-9491)
 - Aldan Creo (<os@acmc.fyi>)  
   ORCID: [0000-0002-7401-5198](https://orcid.org/0000-0002-7401-5198)
-- Damaris Mayans (<dmayans@colby.edu>)  
-  ORCID: [0000-0002-6785-9392](https://orcid.org/0000-0002-6785-9392)
 
 ## Installation
 
